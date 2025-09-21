@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# IntelliJ
+.idea/
+*.iml
+
+# Java build files
+*.class
+
+# Project data files
+tasks.json
