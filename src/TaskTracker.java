@@ -41,14 +41,14 @@ public class TaskTracker {
                     break;
                 case "mark-in-progress":
                     if (args.length != 2) {
-                        System.out.println("Error: please provide task ID and a description");
+                        System.out.println("Error: please provide task ID");
                         return;
                     }
                     markTask(Integer.parseInt(args[1]), "in-progress");
                     break;
                 case "mark-done":
                     if (args.length != 2) {
-                        System.out.println("Error: please provide task ID and a description");
+                        System.out.println("Error: please provide task ID");
                         return;
                     }
                     markTask(Integer.parseInt(args[1]), "done");
@@ -58,8 +58,9 @@ public class TaskTracker {
                         listAll();
                     }
                     else{
-                        listByStatus(args[2]);
+                        listByStatus(args[1]);
                     }
+                    break;
                 default:
                     System.out.println("Error: unknown command '" + args[0] + "'");
                     printUsage();
@@ -70,19 +71,114 @@ public class TaskTracker {
         }
     }
 
-    private static void listByStatus(String arg) {
+    private static void listByStatus(String status) throws IOException {
+        String normalizedStatus = normalizeStatus(status);
+        if (normalizedStatus == null) {
+            System.out.println("Error: unknown status '" + status + "'");
+            return;
+        }
+        List<Task> tasks = loadAllTasks();
+        List<Task> filteredTasks = tasks.stream()
+                .filter(task -> task.getStatus().equals(normalizedStatus))
+                .toList();
+        if (filteredTasks.isEmpty()) {
+            System.out.println("No " + normalizedStatus + " tasks found");
+        }
+        System.out.println("\n" + normalizedStatus + " tasks: ");
+        System.out.println("-----------");
+        for (Task task : filteredTasks) {
+            printTask(task);
+        }
     }
 
-    private static void listAll() {
+    private static String normalizeStatus(String status) {
+        return switch (status.toLowerCase()) {
+            case "in-progress", "inprogress" -> "in-progress";
+            case "done" -> "done";
+            case "todo" -> "todo";
+            default -> null;
+        };
     }
 
-    private static void markTask(int i, String s) {
+    private static void listAll() throws IOException {
+        List<Task> tasks = loadAllTasks();
+        if (tasks.isEmpty()) {
+            System.out.println("No tasks found");
+            return;
+        }
+
+        System.out.println("\nAll tasks:");
+        System.out.println("--------");
+        for (Task task : tasks) {
+            printTask(task);
+        }
     }
 
-    private static void deleteTask(int i) {
+    private static void printTask(Task task) {
+        String statusIcon = getStatusIcon(task.getStatus());
+        System.out.printf("[%d] %s %s (Created: %s, Updated: %s)%n",
+                task.getId(),
+                statusIcon,
+                task.getDescription(),
+                task.getCreatedAt(),
+                task.getUpdatedAt())
+                ;
     }
 
-    private static void updateTask(int i, String arg) {
+    private static String getStatusIcon(String status) {
+        return switch (status) {
+            case "in-progress" -> "[~]";
+            case "done" -> "[✓]";
+            case "todo" -> "[ ]";
+            default -> "[?]";
+        };
+    }
+
+    private static void markTask(int id, String status) throws IOException {
+        List<Task> tasks = loadAllTasks();
+        Task task = findTaskById(tasks, id);
+        if (task == null) {
+            System.out.println("Error: task not found");
+            return;
+        }
+        task.setStatus(status);
+        task.setUpdatedAt(getCurrentTimestamp());
+        saveTasks(tasks);
+        System.out.println("Task " + id + " marked as " + status + " successfully.");
+    }
+
+    private static void deleteTask(int id) throws IOException {
+        List<Task> tasks = loadAllTasks();
+        Task task = findTaskById(tasks ,id);
+
+        if (task == null) {
+            System.out.println("Error: task not found");
+            return;
+        }
+        tasks.remove(task);
+        saveTasks(tasks);
+        System.out.println("Task deleted successfully.");
+    }
+
+    private static void updateTask(int id, String description) throws IOException {
+        List<Task> tasks = loadAllTasks();
+        Task task = findTaskById(tasks, id);
+
+        if (task == null) {
+            System.out.println("Error: task not found");
+            return;
+        }
+
+        task.setDescription(description);
+        task.setUpdatedAt(getCurrentTimestamp());
+
+        saveTasks(tasks);
+
+    }
+
+    private static Task findTaskById(List<Task> tasks, int id) {
+
+        return tasks.stream().filter(task -> task.getId() == id).findFirst().orElse(null);
     }
 
     private static void addTask(String description) throws IOException {
@@ -90,12 +186,15 @@ public class TaskTracker {
         List<Task> tasks = loadAllTasks();
         int newId = getNextId(tasks);
         Task newTask = new Task(newId, description, "todo",
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
-
+                getCurrentTimestamp(),
+                getCurrentTimestamp());
         tasks.add(newTask);
         saveTasks(tasks);
 
+    }
+
+    private static String getCurrentTimestamp() {
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     private static void saveTasks(List<Task> tasks) throws IOException {
